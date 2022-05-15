@@ -20,14 +20,6 @@ function NfcInitiation() {
       NfcManager.cancelTechnologyRequest();
     }
   }
-
-  return (
-    <View style={styles.wrapper}>
-      <TouchableOpacity onPress={readNdef}>
-        <Text>Scan a Tag</Text>
-      </TouchableOpacity>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({

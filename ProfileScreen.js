@@ -5,9 +5,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import ContactsScreen from './ContactsScreen';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import GestureRecognizer, {swipeDirections} from 'react-native-swipe-gestures';
-import NfcInitiation from './NfcInitiation';
+import Modal from 'expo-modal';
+import MFC, { ByteParser } from 'react-native-mifare-classic-wrapper';
+import NativeEventEmitter from 'NativeEventEmitter';
 
 const Tab = createBottomTabNavigator();
+
 
 
 function ProfileScreen({route}) {
@@ -39,9 +42,11 @@ function ProfileScreen({route}) {
   };
 
   const handleShare = () => {
-    <NfcInitiation/>
     Alert.alert("Add functionality to share button");
+    //listenToNfcEventOnce();
+    //readNdef();
   };
+
 
   const handleLongPress = () => {
     Alert.alert("Add longpress functionality");
@@ -135,8 +140,11 @@ function ProfileScreen({route}) {
     },
   ];
 
-  return (
+  return Modal.wrapIntoModal (
       <View style={styles.container}>
+        <View style={styles.container}>
+          {this.state.nfcError ? nfcError() : ((this.state.tag && this.state.data) ? tagDetected : noTag)()}
+        </View>
         <TouchableOpacity style={styles.coverphotobutton} onPress={handleCoverPhoto} disabled={edit}>
           <Image source={require("./assets/favicon.png")}/>
         </TouchableOpacity>
@@ -149,7 +157,7 @@ function ProfileScreen({route}) {
           <TouchableOpacity style={styles.editbutton} onPress={handleEdit}>
             <Image source={require("./assets/favicon.png")}/>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.sharebutton} onPress={handleShare}>
+          <TouchableOpacity style={styles.sharebutton} onPress={listenToNfcEventOnce}>
             <Image source={require("./assets/favicon.png")}/>
           </TouchableOpacity>
         </View>
@@ -251,7 +259,50 @@ const styles = StyleSheet.create({
 });
 
 export default class NavBar extends React.Component{
+  constructor (props) {
+    super(props)
+    this.state = {
+      nfcError: 'Please wait...',
+      tag: null,
+      data: null
+    }
+  }
+
+  componentDidMount () {
+    const tagFound = async (tag) => {
+      await tag.readBlock(48, {
+        sector: 12,
+        key: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
+        keyType: 'A'
+      }).then(d => {
+        this.setState({ tag: tag.id, data: ByteParser.byteToString(d) })
+      })
+    }
+
+    MFC.start().then(() => MFC.listen(tagFound))
+      .then(this.setState({ nfcError: null }))
+      .catch(e => this.setState({ nfcError: e.message }))
+
+    MFC.onStateChanged(({ state }) => {
+      if (state === 'on') {
+        this.setState({ nfcError: this.state.oldNfcError, tag: null, data: null })
+      } else if (state === 'off') {
+        this.setState({
+          oldNfcError: this.state.nfcError,
+          nfcError: 'NFC Disabled!'
+        })
+      }
+    })
+  }
   render(){
+    const nfcError = () => <Text>{this.state.nfcError}</Text>
+    const noTag = () => <Text> Approach a Mifare Classic Tag </Text>
+    const tagDetected = () => (
+      <View>
+        <Text>ID: {this.state.tag}</Text>
+        <Text>Data: {this.state.data}</Text>
+      </View>
+    )
     return(
         <Tab.Navigator
         initialRouteName="ProfileScreen"
